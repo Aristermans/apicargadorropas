@@ -247,6 +247,8 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`✅ API corriendo en http://localhost:${port}`);
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`✅ API corriendo en http://localhost:${PORT}`);
+
 });
