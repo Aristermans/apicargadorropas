@@ -173,6 +173,69 @@ app.post('/api/tallas/registrar', async (req, res) => {
   }
 });
 
+//compara la cantidad de stock que hay si la prenda ya se registro previamente para evitar duplicados
+app.get('/api/ropa/:id/stock-detalle', async (req, res) => {
+  try {
+    const ropa_id = req.params.id;
+
+    // Verificar que la prenda existe
+    const ropaRes = await pool.query(
+      'SELECT stock FROM ropas WHERE id = $1',
+      [ropa_id]
+    );
+
+    if (ropaRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Prenda no encontrada' });
+    }
+
+    const stockTotal = ropaRes.rows[0].stock;
+
+    // Sumar stock ya registrado por tallas
+    const asignadoRes = await pool.query(
+      'SELECT COALESCE(SUM(stock), 0) AS stock_asignado FROM ropa_talla WHERE ropa_id = $1',
+      [ropa_id]
+    );
+    const stockAsignado = parseInt(asignadoRes.rows[0].stock_asignado, 10);
+    const stockDisponible = stockTotal - stockAsignado;
+
+    // Obtener tallas ya registradas con su nombre y cantidad
+    const tallasRegistradasRes = await pool.query(`
+      SELECT rt.talla_id, t.nombre AS talla_nombre, t.descripcion, rt.stock
+      FROM ropa_talla rt
+      JOIN tallas t ON rt.talla_id = t.id
+      WHERE rt.ropa_id = $1
+    `, [ropa_id]);
+
+    const tallasRegistradas = tallasRegistradasRes.rows;
+
+    // Si ya no hay stock disponible
+    if (stockDisponible <= 0) {
+      return res.status(400).json({
+        error: 'La prenda ya tiene todo su stock asignado por tallas.',
+        ropa_id,
+        stock_total: stockTotal,
+        stock_asignado: stockAsignado,
+        stock_disponible: 0,
+        tallas_registradas: tallasRegistradas
+      });
+    }
+
+    // Si aún hay stock para asignar tallas
+    res.json({
+      ropa_id,
+      stock_total: stockTotal,
+      stock_asignado: stockAsignado,
+      stock_disponible: stockDisponible,
+      mensaje: 'La prenda aún tiene stock disponible para asignar tallas.',
+      tallas_registradas: tallasRegistradas
+    });
+
+  } catch (error) {
+    console.error('Error al obtener el detalle de stock:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 
 // Prueba de conexión
 app.get('/api/test-db', async (req, res) => {
