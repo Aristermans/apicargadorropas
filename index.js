@@ -68,24 +68,10 @@ app.post('/api/ropa', async (req, res) => {
   }
 });
 
-// Insertar nueva ropa
-app.post('/api/ropa', async (req, res) => {
-  try {
-    const { nombre, descripcion, precio, stock, categoria_id, imagen_url } = req.body;
-    const result = await pool.query(
-      'INSERT INTO ropa (nombre, descripcion, precio, stock, categoria_id, imagen_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [nombre, descripcion, precio, stock, categoria_id, imagen_url]
-    );
-    res.json({ mensaje: 'Ropa registrada correctamente', ropa: result.rows[0] });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Obtener todas las ropas
-app.get('/api/ropas', async (req, res) => {
+app.get('/api/ropas/todas', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM ropa');
+    const result = await pool.query('SELECT * FROM ropas');
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -93,10 +79,10 @@ app.get('/api/ropas', async (req, res) => {
 });
 
 // Eliminar ropa
-app.delete('/api/ropa/:id', async (req, res) => {
+app.delete('/api/ropas/eliminar/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM ropa WHERE id = $1', [id]);
+    await pool.query('DELETE FROM ropas WHERE id = $1', [id]);
     res.json({ mensaje: 'Ropa eliminada correctamente' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -104,12 +90,12 @@ app.delete('/api/ropa/:id', async (req, res) => {
 });
 
 // Editar ropa
-app.put('/api/ropa/:id', async (req, res) => {
+app.put('/api/ropas/editar/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, descripcion, precio, stock, categoria_id, imagen_url } = req.body;
     await pool.query(
-      'UPDATE ropa SET nombre = $1, descripcion = $2, precio = $3, stock = $4, categoria_id = $5, imagen_url = $6 WHERE id = $7',
+      'UPDATE ropas SET nombre = $1, descripcion = $2, precio = $3, stock = $4, categoria_id = $5, imagen_url = $6 WHERE id = $7',
       [nombre, descripcion, precio, stock, categoria_id, imagen_url, id]
     );
     res.json({ mensaje: 'Ropa actualizada correctamente' });
@@ -119,11 +105,11 @@ app.put('/api/ropa/:id', async (req, res) => {
 });
 
 // Filtrar ropa por talla
-app.get('/api/ropas/talla/:talla', async (req, res) => {
+app.get('/api/ropas/por-talla/:talla', async (req, res) => {
   try {
     const { talla } = req.params;
     const result = await pool.query(
-      'SELECT r.* FROM ropa r JOIN tallas_ropa tr ON r.id = tr.ropa_id WHERE tr.talla = $1',
+      'SELECT r.* FROM ropas r JOIN tallas_ropa tr ON r.id = tr.ropa_id WHERE tr.talla = $1',
       [talla]
     );
     res.json(result.rows);
@@ -132,29 +118,29 @@ app.get('/api/ropas/talla/:talla', async (req, res) => {
   }
 });
 
-// Filtrar ropa por precio menor a cierto valor
-app.get('/api/ropas/precio/:monto', async (req, res) => {
+// Filtrar ropa por precio
+app.get('/api/ropas/por-precio/:monto', async (req, res) => {
   try {
     const { monto } = req.params;
-    const result = await pool.query('SELECT * FROM ropa WHERE precio <= $1', [monto]);
+    const result = await pool.query('SELECT * FROM ropas WHERE precio <= $1', [monto]);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Filtrar ropa por categoria
-app.get('/api/ropas/categoria/:categoria_id', async (req, res) => {
+// Filtrar ropa por categoría
+app.get('/api/ropas/por-categoria/:categoria_id', async (req, res) => {
   try {
     const { categoria_id } = req.params;
-    const result = await pool.query('SELECT * FROM ropa WHERE categoria_id = $1', [categoria_id]);
+    const result = await pool.query('SELECT * FROM ropas WHERE categoria_id = $1', [categoria_id]);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Obtener tallas disponibles (podrías tener tabla "tallas")
+// Obtener tallas disponibles
 app.get('/api/tallas', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM tallas');
@@ -165,7 +151,7 @@ app.get('/api/tallas', async (req, res) => {
 });
 
 // Registrar tallas por ropa
-app.post('/api/tallas-ropa', async (req, res) => {
+app.post('/api/tallas/registrar', async (req, res) => {
   try {
     const { ropa_id, tallas } = req.body; // tallas = [{ talla: 'S', cantidad: 5 }, ...]
     for (const { talla, cantidad } of tallas) {
@@ -179,7 +165,6 @@ app.post('/api/tallas-ropa', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 
 // Prueba de conexión
 app.get('/api/test-db', async (req, res) => {
