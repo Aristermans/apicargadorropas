@@ -150,21 +150,29 @@ app.get('/api/tallas', async (req, res) => {
   }
 });
 
-// Registrar tallas por ropa
+// Registrar múltiples tallas con stock para una prenda
 app.post('/api/tallas/registrar', async (req, res) => {
   try {
-    const { ropa_id, talla_id } = req.body; // tallas = [{ talla: 'S', cantidad: 5 }, ...]
+    const { ropa_id, tallas } = req.body;
+
+    if (!ropa_id || !Array.isArray(tallas) || tallas.length === 0) {
+      return res.status(400).json({ error: 'Faltan datos: ropa_id o tallas inválidas' });
+    }
+
     for (const { talla_id, stock } of tallas) {
       await pool.query(
-        'INSERT INTO ropa_talla (ropa_id, talla_id, stock) VALUES ($1, $2, $3)',
+        'INSERT INTO ropa_talla (ropa_id, talla_id, stock) VALUES ($1, $2, $3) ON CONFLICT (ropa_id, talla_id) DO UPDATE SET stock = EXCLUDED.stock',
         [ropa_id, talla_id, stock]
       );
     }
-    res.json({ mensaje: 'ya sirves para algo gil registraste correctamente' });
+
+    res.json({ mensaje: 'Tallas registradas correctamente con stock' });
   } catch (error) {
+    console.error('Error al registrar tallas:', error);
     res.status(500).json({ error: error.message });
   }
 });
+
 
 // Prueba de conexión
 app.get('/api/test-db', async (req, res) => {
