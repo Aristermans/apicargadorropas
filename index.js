@@ -153,14 +153,14 @@ app.get('/api/tallas', async (req, res) => {
 // Registrar tallas por ropa
 app.post('/api/tallas/registrar', async (req, res) => {
   try {
-    const { ropa_id, tallas } = req.body; // tallas = [{ talla: 'S', cantidad: 5 }, ...]
-    for (const { talla, cantidad } of tallas) {
+    const { ropa_id, talla_id } = req.body; // tallas = [{ talla: 'S', cantidad: 5 }, ...]
+    for (const { talla_id, stock } of tallas) {
       await pool.query(
-        'INSERT INTO tallas_ropa (ropa_id, talla, cantidad) VALUES ($1, $2, $3)',
-        [ropa_id, talla, cantidad]
+        'INSERT INTO ropa_talla (ropa_id, talla_id, stock) VALUES ($1, $2, $3)',
+        [ropa_id, talla_id, stock]
       );
     }
-    res.json({ mensaje: 'Tallas registradas correctamente' });
+    res.json({ mensaje: 'ya sirves para algo gil registraste correctamente' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
