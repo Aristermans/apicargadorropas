@@ -236,6 +236,76 @@ app.get('/api/ropa/:id/stock-detalle', async (req, res) => {
   }
 });
 
+//jala todos los colores
+app.get('/api/colores', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM colores');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener los colores:', error.message);
+    res.status(500).json({ error: 'Error al obtener los colores' });
+  }
+});
+
+
+// Subir varios colores con sus imágenes
+app.post('/api/ropa/colores', upload.array('imagenes'), async (req, res) => {
+  try {
+    const { ropa_id, colores } = req.body;
+
+    // Validar entrada
+    if (!ropa_id || !colores || !req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'Datos incompletos' });
+    }
+
+    // Asegúrate de que los colores vengan como JSON (array)
+    const coloresArray = JSON.parse(colores);
+
+    if (coloresArray.length !== req.files.length) {
+      return res.status(400).json({ error: 'Cantidad de imágenes no coincide con los colores' });
+    }
+
+    const registros = [];
+
+    // Procesar cada imagen y color
+    for (let i = 0; i < coloresArray.length; i++) {
+      const file = req.files[i];
+      const color = coloresArray[i];
+      const filePath = `ropa_colores/${Date.now()}-${file.originalname}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('ropas')
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+        });
+
+      if (uploadError) {
+        console.error('Error al subir imagen:', uploadError.message);
+        continue; // Skip si falla
+      }
+
+      const { data: publicData } = supabase.storage
+        .from('ropas')
+        .getPublicUrl(filePath);
+
+      // Guardar en base de datos
+      await pool.query(
+        `INSERT INTO ropa_color (ropa_id, color, imagen_url)
+         VALUES ($1, $2, $3)`,
+        [ropa_id, color, publicData.publicUrl]
+      );
+
+      registros.push({ color, imagen_url: publicData.publicUrl });
+    }
+
+    res.json({ mensaje: 'Colores e imágenes registradas', registros });
+
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // Prueba de conexión
 app.get('/api/test-db', async (req, res) => {
@@ -250,5 +320,7 @@ app.get('/api/test-db', async (req, res) => {
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`✅ API corriendo en http://localhost:${PORT}`);
+
+  
 
 });
