@@ -248,17 +248,15 @@ app.get('/api/colores', async (req, res) => {
 });
 
 
-// Subir varios colores con sus imágenes
+// Subir varios colores con sus imágenes (usa color_id en lugar de color)
 app.post('/api/ropa/colores', upload.array('imagenes'), async (req, res) => {
   try {
     const { ropa_id, colores } = req.body;
 
-    // Validar entrada
     if (!ropa_id || !colores || !req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'Datos incompletos' });
     }
 
-    // Asegúrate de que los colores vengan como JSON (array)
     const coloresArray = JSON.parse(colores);
 
     if (coloresArray.length !== req.files.length) {
@@ -267,10 +265,10 @@ app.post('/api/ropa/colores', upload.array('imagenes'), async (req, res) => {
 
     const registros = [];
 
-    // Procesar cada imagen y color
     for (let i = 0; i < coloresArray.length; i++) {
       const file = req.files[i];
-      const color = coloresArray[i];
+      const color_id = coloresArray[i];  // Usamos el ID
+
       const filePath = `ropa_colores/${Date.now()}-${file.originalname}`;
 
       const { error: uploadError } = await supabase.storage
@@ -281,21 +279,20 @@ app.post('/api/ropa/colores', upload.array('imagenes'), async (req, res) => {
 
       if (uploadError) {
         console.error('Error al subir imagen:', uploadError.message);
-        continue; // Skip si falla
+        continue;
       }
 
       const { data: publicData } = supabase.storage
         .from('ropas')
         .getPublicUrl(filePath);
 
-      // Guardar en base de datos
       await pool.query(
-        `INSERT INTO ropa_color (ropa_id, color, imagen_url)
+        `INSERT INTO ropa_color (ropa_id, color_id, imagen_url)
          VALUES ($1, $2, $3)`,
-        [ropa_id, color, publicData.publicUrl]
+        [ropa_id, color_id, publicData.publicUrl]
       );
 
-      registros.push({ color, imagen_url: publicData.publicUrl });
+      registros.push({ color_id, imagen_url: publicData.publicUrl });
     }
 
     res.json({ mensaje: 'Colores e imágenes registradas', registros });
