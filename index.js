@@ -173,6 +173,17 @@ app.post('/api/tallas/registrar', async (req, res) => {
   }
 });
 
+// Filtro combinado (categoría + precio + talla)
+app.get('/api/ropas/filtros', async (req, res) => {
+  const { categoria_id, precio_max, talla_id } = req.query;
+  // Lógica de filtrado combinado
+});
+
+// Obtener colores disponibles para una prenda específica
+app.get('/api/ropas/:id/colores', async (req, res) => {
+  // Retornar colores disponibles para esa prenda
+});
+
 //compara la cantidad de stock que hay si la prenda ya se registro previamente para evitar duplicados
 app.get('/api/ropa/:id/stock-detalle', async (req, res) => {
   try {
