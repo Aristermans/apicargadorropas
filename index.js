@@ -388,7 +388,194 @@ app.post('/api/usuarios/verificar-dni', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor al verificar DNI.' });
   }
 });
+app.get('/api/estados', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM estado ORDER BY id');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener los estados de pedido:', error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener estados de pedido.' });
+  }
+});
 
+app.get('/api/pedidos', async (req, res) => {
+  try {
+    const { usuario_id, estado_id, min_total, max_total, fecha_inicio, fecha_fin } = req.query;
+    let query = `
+      SELECT
+        p.id AS pedido_id,
+        p.fecha,
+        p.direccion,
+        p.coordenadas,
+        p.numero_contacto,
+        p.total,
+        u.id AS usuario_id,
+        u.nombre AS usuario_nombre,
+        u.correo AS usuario_correo,
+        e.id AS estado_id,
+        e.nombre AS estado_nombre,
+        mp.id AS metodo_pago_id,
+        mp.nombre AS metodo_pago_nombre,
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'detalle_id', dp.id,
+            'ropa_id', r.id,
+            'ropa_nombre', r.nombre,
+            'cantidad', dp.cantidad,
+            'precio_unitario', dp.precio_unitario,
+            'subtotal', dp.subtotal,
+            'imagen_url', r.imagen_url
+          ) ORDER BY dp.id
+        ) AS detalles_items
+      FROM
+        pedidos p
+      JOIN
+        usuarios u ON p.usuario_id = u.id
+      JOIN
+        estado e ON p.estado_id = e.id
+      JOIN
+        metodo_pago mp ON p.metodo_pago_id = mp.id
+      LEFT JOIN
+        detalles_pedido dp ON p.id = dp.pedido_id
+      LEFT JOIN
+        ropas r ON dp.ropa_id = r.id
+    `;
+
+    const conditions = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (usuario_id) {
+      conditions.push(`p.usuario_id = $${paramIndex++}`);
+      values.push(usuario_id);
+    }
+    if (estado_id) {
+      conditions.push(`p.estado_id = $${paramIndex++}`);
+      values.push(estado_id);
+    }
+    if (min_total) {
+      conditions.push(`p.total >= $${paramIndex++}`);
+      values.push(min_total);
+    }
+    if (max_total) {
+      conditions.push(`p.total <= $${paramIndex++}`);
+      values.push(max_total);
+    }
+    if (fecha_inicio) {
+      conditions.push(`p.fecha >= $${paramIndex++}`);
+      values.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`p.fecha <= $${paramIndex++}`);
+      values.push(fecha_fin);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ` + conditions.join(' AND ');
+    }
+
+    query += ` GROUP BY p.id, u.id, e.id, mp.id ORDER BY p.fecha DESC`;
+
+    const result = await pool.query(query, values);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener/filtrar pedidos:', error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener pedidos.' });
+  }
+});
+
+// Endpoint para obtener un pedido específico por ID
+app.get('/api/pedidos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = `
+      SELECT
+        p.id AS pedido_id,
+        p.fecha,
+        p.direccion,
+        p.coordenadas,
+        p.numero_contacto,
+        p.total,
+        u.id AS usuario_id,
+        u.nombre AS usuario_nombre,
+        u.correo AS usuario_correo,
+        e.id AS estado_id,
+        e.nombre AS estado_nombre,
+        mp.id AS metodo_pago_id,
+        mp.nombre AS metodo_pago_nombre,
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'detalle_id', dp.id,
+            'ropa_id', r.id,
+            'ropa_nombre', r.nombre,
+            'cantidad', dp.cantidad,
+            'precio_unitario', dp.precio_unitario,
+            'subtotal', dp.subtotal,
+            'imagen_url', r.imagen_url
+          ) ORDER BY dp.id
+        ) AS detalles_items
+      FROM
+        pedidos p
+      JOIN
+        usuarios u ON p.usuario_id = u.id
+      JOIN
+        estado e ON p.estado_id = e.id
+      JOIN
+        metodo_pago mp ON p.metodo_pago_id = mp.id
+      LEFT JOIN
+        detalles_pedido dp ON p.id = dp.pedido_id
+      LEFT JOIN
+        ropas r ON dp.ropa_id = r.id
+      WHERE
+        p.id = $1
+      GROUP BY p.id, u.id, e.id, mp.id;
+    `;
+    const result = await pool.query(query, [id]);
+
+    if (result.rows.length > 0) {
+      res.json(result.rows[0]);
+    } else {
+      res.status(404).json({ error: 'Pedido no encontrado.' });
+    }
+  } catch (error) {
+    console.error('Error al obtener pedido por ID:', error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener el pedido.' });
+  }
+});
+
+// Endpoint para actualizar el estado de un pedido
+// PUT /api/pedidos/:id/estado
+// Body: { "estado_id": 2 }
+app.put('/api/pedidos/:id/estado', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estado_id } = req.body;
+
+    if (!estado_id) {
+      return res.status(400).json({ error: 'El ID del estado es requerido.' });
+    }
+
+    // Opcional: Podrías verificar que estado_id existe en la tabla 'estado'
+    const estadoCheck = await pool.query('SELECT id FROM estado WHERE id = $1', [estado_id]);
+    if (estadoCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'El estado_id proporcionado no es válido.' });
+    }
+
+    const result = await pool.query(
+      'UPDATE pedidos SET estado_id = $1 WHERE id = $2 RETURNING id',
+      [estado_id, id]
+    );
+
+    if (result.rows.length > 0) {
+      res.json({ mensaje: 'Estado del pedido actualizado correctamente.', pedido_id: result.rows[0].id });
+    } else {
+      res.status(404).json({ error: 'Pedido no encontrado para actualizar.' });
+    }
+  } catch (error) {
+    console.error('Error al actualizar el estado del pedido:', error);
+    res.status(500).json({ error: 'Error interno del servidor al actualizar el estado.' });
+  }
+});
 
 
 // Prueba de conexión
