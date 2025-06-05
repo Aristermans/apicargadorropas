@@ -314,6 +314,48 @@ app.post('/api/ropa/colores', upload.array('imagenes'), async (req, res) => {
   }
 });
 
+// ... (tus imports y middleware existentes)
+
+// Crear un nuevo pedido
+app.post('/api/pedidos', async (req, res) => {
+  const { usuario_id, metodo_pago_id, direccion, coordenadas, numero_contacto, total, cartItems } = req.body;
+
+  try {
+    // Iniciar una transacción
+    await pool.query('BEGIN');
+
+    // 1. Insertar en la tabla pedidos
+    const pedidoResult = await pool.query(
+      `INSERT INTO pedidos (usuario_id, estado_id, metodo_pago_id, direccion, coordenadas, numero_contacto, total)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [usuario_id, 1, metodo_pago_id, direccion, coordenadas, numero_contacto, total] // estado_id = 1 (por ejemplo, 'Pendiente' o 'Nuevo')
+    );
+    const pedido_id = pedidoResult.rows[0].id;
+
+    // 2. Insertar en la tabla detalles_pedido para cada artículo en cartItems
+    for (const item of cartItems) {
+      await pool.query(
+        `INSERT INTO detalles_pedido (pedido_id, ropa_id, cantidad, precio_unitario, subtotal)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [pedido_id, item.id, item.quantity, parseFloat(item.precio), parseFloat(item.precio) * item.quantity]
+      );
+      // Opcionalmente, puedes actualizar el stock del producto aquí si gestionas el stock en tu DB
+      // await pool.query('UPDATE ropas SET stock = stock - $1 WHERE id = $2', [item.quantity, item.id]);
+    }
+
+    // Confirmar la transacción
+    await pool.query('COMMIT');
+
+    res.status(201).json({ mensaje: 'Pedido registrado correctamente', pedido_id });
+  } catch (error) {
+    // Revertir la transacción en caso de error
+    await pool.query('ROLLBACK');
+    console.error('Error al registrar el pedido:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 
 // Prueba de conexión
 app.get('/api/test-db', async (req, res) => {
