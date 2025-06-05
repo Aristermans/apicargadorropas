@@ -355,6 +355,40 @@ app.post('/api/pedidos', async (req, res) => {
   }
 });
 
+// Nuevo endpoint para registrar un nuevo usuario
+app.post('/api/usuarios/registrar', async (req, res) => {
+  const { nombre, correo, contrasena, dni } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO usuarios (nombre, correo, contraseña, dni) VALUES ($1, $2, $3, $4) RETURNING id, nombre, correo, dni',
+      [nombre, correo, contrasena, dni] // Asegúrate de hashear la contraseña en una aplicación real
+    );
+    res.status(201).json({ mensaje: 'Usuario registrado exitosamente', usuario: result.rows[0] });
+  } catch (error) {
+    if (error.code === '23505') { // Código de error para unique_violation
+      return res.status(409).json({ error: 'El correo o DNI ya está registrado.' });
+    }
+    console.error('Error al registrar usuario:', error);
+    res.status(500).json({ error: 'Error interno del servidor al registrar usuario.' });
+  }
+});
+
+// Nuevo endpoint para verificar si un DNI existe
+app.post('/api/usuarios/verificar-dni', async (req, res) => {
+  const { dni } = req.body;
+  try {
+    const result = await pool.query('SELECT id, nombre, correo, dni FROM usuarios WHERE dni = $1', [dni]);
+    if (result.rows.length > 0) {
+      res.json({ existe: true, usuario: result.rows[0] });
+    } else {
+      res.json({ existe: false });
+    }
+  } catch (error) {
+    console.error('Error al verificar DNI:', error);
+    res.status(500).json({ error: 'Error interno del servidor al verificar DNI.' });
+  }
+});
+
 
 
 // Prueba de conexión
@@ -366,6 +400,7 @@ app.get('/api/test-db', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
